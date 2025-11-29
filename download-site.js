@@ -19,8 +19,61 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
 
-const ROOT = "https://thegentlemensedit.com";
-const OUT = "/Users/BGoodwin/Documents/Websites/thegentlemensedit";
+// -------------------- CLI ARGUMENT HANDLING --------------------
+const readline = require("readline");
+const args = process.argv.slice(2);
+
+if (args.length === 0 || !/^https?:\/\//.test(args[0])) {
+  console.log("❌ Please provide a valid URL.\n");
+  console.log("Usage: node download-site.js <website_url> [--out <path>]");
+  console.log("Example: node download-site.js https://example.com --out ~/Sites/mirror");
+  process.exit(1);
+}
+
+const ROOT = args[0];
+const domain = new URL(ROOT).hostname;
+
+// Simple flag parser
+let OUT = null;
+const outIndex = args.indexOf("--out");
+if (outIndex !== -1 && args[outIndex + 1]) {
+  OUT = path.resolve(args[outIndex + 1]);
+}
+
+async function getOutputPath() {
+  if (OUT) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    return new Promise((resolve) => {
+      rl.question(`You selected output path:\n  ${OUT}\n\nIs this correct? (Y/n) `, (answer) => {
+        rl.close();
+        if (answer.trim().toLowerCase() === "n") {
+          console.log("❌ Cancelled.");
+          process.exit(1);
+        } else {
+          resolve(OUT);
+        }
+      });
+    });
+  } else {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    return new Promise((resolve) => {
+      rl.question("Do you want to choose a custom download folder? (y/N) ", (answer) => {
+        if (answer.trim().toLowerCase() === "y") {
+          rl.question("Enter full output path: ", (customPath) => {
+            rl.close();
+            resolve(path.resolve(customPath || `downloads/${domain}`));
+          });
+        } else {
+          rl.close();
+          resolve(path.resolve(`downloads/${domain}`));
+        }
+      });
+    });
+  }
+}
+
+const OUT = await getOutputPath();
+fs.mkdirSync(OUT, { recursive: true });
 
 fs.mkdirSync(OUT, { recursive: true });
 
